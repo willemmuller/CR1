@@ -1,0 +1,20 @@
+{
+  "name": "policy-publish",
+  "version": "0.1.0",
+  "description": "Publishes compiled evidence policies from the policies observed along a delegation stack.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

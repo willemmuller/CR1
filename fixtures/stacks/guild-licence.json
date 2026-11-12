@@ -1,0 +1,188 @@
+{
+  "description": "A two-row delegation stack in the fictional Republic of Zedland. The Guild Standards Board sets what a guild licence assessment is; Harbour Guild Hall is where an applicant actually takes it.",
+  "authorities": [
+    {
+      "stableId": "ZEDLAND_GUILD_REGULATOR",
+      "jurisdiction": "ZEDLAND",
+      "authorityType": "GUILD_REGULATOR"
+    }
+  ],
+  "orgs": [
+    { "stableId": "GUILD_STANDARDS_BOARD", "name": "Guild Standards Board" },
+    { "stableId": "HARBOUR_GUILD_HALL", "name": "Harbour Guild Hall" }
+  ],
+  "orgDelegations": [
+    {
+      "stableId": "ZEDLAND_GUILD_REGULATOR__HARBOUR_GUILD_HALL__STACK1",
+      "delegationStackId": "ZEDLAND_GUILD_REGULATOR__HARBOUR_GUILD_HALL",
+      "delegationStackIndex": 1,
+      "authorityId": "ZEDLAND_GUILD_REGULATOR",
+      "orgId": "GUILD_STANDARDS_BOARD",
+      "evidenceTypes": ["GUILD_LICENCE"]
+    },
+    {
+      "stableId": "ZEDLAND_GUILD_REGULATOR__HARBOUR_GUILD_HALL__STACK2",
+      "delegationStackId": "ZEDLAND_GUILD_REGULATOR__HARBOUR_GUILD_HALL",
+      "delegationStackIndex": 2,
+      "authorityId": "ZEDLAND_GUILD_REGULATOR",
+      "orgId": "HARBOUR_GUILD_HALL",
+      "evidenceTypes": ["GUILD_LICENCE"]
+    }
+  ],
+  "evidences": [
+    {
+      "stableId": "ZEDLAND__GUILD_LICENCE",
+      "name": "Zedland Guild Licence",
+      "evidenceTypes": ["GUILD_LICENCE"],
+      "schemaFragment": {
+        "type": "object",
+        "properties": {
+          "licenceNumber": { "type": "string", "title": "Licence No." },
+          "holderName": { "type": "string", "title": "Holder" },
+          "trade": { "type": "string", "title": "Trade" },
+          "issueDate": { "type": "string", "title": "Date of issue" },
+          "expiryDate": { "type": "string", "title": "Valid until" }
+        }
+      }
+    }
+  ],
+  "evidenceDelegations": [
+    {
+      "stableId": "ZEDLAND_GUILD_REGULATOR__HARBOUR_GUILD_HALL__STACK1__ZEDLAND__GUILD_LICENCE",
+      "orgDelegationId": "ZEDLAND_GUILD_REGULATOR__HARBOUR_GUILD_HALL__STACK1",
+      "evidenceId": "ZEDLAND__GUILD_LICENCE",
+      "observedPolicy": {
+        "sequence": "firstIssue",
+        "resolvedEvidences": [
+          {
+            "name": "identityCard",
+            "evidenceResolver": {
+              "description": "Valid identity card",
+              "queries": [{ "evidenceTypes": ["NATIONAL_ID"], "jurisdictions": ["ZEDLAND"] }]
+            }
+          },
+          {
+            "name": "guildLicence",
+            "evidenceResolver": {
+              "description": "Guild licence",
+              "queries": [{ "evidenceTypes": ["GUILD_LICENCE"], "jurisdictions": ["ZEDLAND"] }]
+            }
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "documentReadiness",
+            "instruction": { "title": "Prepare your documents" },
+            "templates": ["documentReadiness"],
+            "channels": [],
+            "outcomes": [
+              {
+                "outcomeId": "ready",
+                "stepState": "SUCCEEDED",
+                "taskState": "IN_PROGRESS",
+                "defaultIf": "true",
+                "inputEvidences": [{ "name": "identityCard" }],
+                "inputRules": [
+                  {
+                    "ruleId": "identityCardValid",
+                    "description": "Must hold an identity card that has not expired",
+                    "query": "$identityCard.instance.expiryDate > $today()"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "stepId": "attendAssessment",
+            "instruction": { "title": "Take the trade assessment" },
+            "templates": ["attendAppointment"],
+            "activities": ["takeTest"],
+            "channels": [],
+            "enableIf": "$stepOutcome('documentReadiness', 'ready')",
+            "outcomes": [
+              {
+                "outcomeId": "passed",
+                "stepState": "SUCCEEDED",
+                "taskState": "COMPLETED",
+                "defaultIf": "true",
+                "title": "I passed",
+                "inputEvidences": [{ "name": "identityCard", "direction": "present" }],
+                "outputEvidences": [{ "name": "guildLicence", "direction": "issued" }]
+              },
+              {
+                "outcomeId": "failed",
+                "stepState": "IN_PROGRESS",
+                "taskState": "IN_PROGRESS",
+                "title": "I did not pass",
+                "includeIf": "$stepAttempt('attendAssessment') < 3"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "stableId": "ZEDLAND_GUILD_REGULATOR__HARBOUR_GUILD_HALL__STACK2__ZEDLAND__GUILD_LICENCE",
+      "orgDelegationId": "ZEDLAND_GUILD_REGULATOR__HARBOUR_GUILD_HALL__STACK2",
+      "evidenceId": "ZEDLAND__GUILD_LICENCE",
+      "observedPolicy": {
+        "resolvedEvidences": [
+          {
+            "name": "bookingConfirmation",
+            "evidenceResolver": {
+              "description": "Assessment booking confirmation",
+              "queries": [{ "evidenceTypes": ["APPOINTMENT_CONFIRMATION"], "orgs": ["HARBOUR_GUILD_HALL"] }]
+            }
+          }
+        ],
+        "channels": [
+          { "name": "hallCounter", "channelType": "inPerson", "purpose": "assessments" },
+          { "name": "hallPortal", "channelType": "digital", "purpose": "booking" }
+        ],
+        "steps": [
+          {
+            "stepId": "attendAssessment",
+            "channels": [{ "name": "hallCounter" }],
+            "outcomes": [
+              {
+                "outcomeId": "passed",
+                "facts": [
+                  {
+                    "name": "assessmentFee",
+                    "type": "fee",
+                    "entries": [
+                      {
+                        "query": "{ 'amount': $bookingConfirmation.instance.fee, 'currency': 'ZED' }"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "policyTemplates": [
+    {
+      "stableId": "TEMPLATE__ATTEND_APPOINTMENT",
+      "name": "attendAppointment",
+      "content": {
+        "steps": [
+          {
+            "stepId": "attendAppointment",
+            "outcomes": [
+              {
+                "outcomeId": "missed",
+                "stepState": "IN_PROGRESS",
+                "taskState": "IN_PROGRESS",
+                "title": "I missed it"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
