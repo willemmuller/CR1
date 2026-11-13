@@ -10,7 +10,7 @@ import type {
   PublishOutcome,
 } from '../entities';
 import type { Diagnostic, PolicyPipeline } from '../pipeline';
-import type { Repository } from '../repository';
+import type { UnitOfWork } from '../repository';
 import type { Clock } from '../util/clock';
 
 export interface PublishRequest {
@@ -58,7 +58,7 @@ interface PublishInput {
  */
 export class EvidencePublishService {
   constructor(
-    private readonly repository: Repository,
+    private readonly unitOfWork: UnitOfWork,
     private readonly pipeline: PolicyPipeline,
     private readonly clock: Clock,
   ) {}
@@ -83,7 +83,7 @@ export class EvidencePublishService {
       const fragment = this.pipeline.fragmenter.fragment(observed, merged);
       merged = this.pipeline.merger.merge(merged, fragment);
 
-      const saved = await this.repository.savePolicyFragment(delegation, fragment);
+      const saved = await this.unitOfWork.evidenceDelegations.savePolicyFragment(delegation, fragment);
       fragments.push(saved);
       const changed = saved.temporalId !== delegation.temporalId;
       log.add(
@@ -94,12 +94,15 @@ export class EvidencePublishService {
       );
     }
 
-    const templates = await this.repository.getPolicyTemplates();
+    const templates = await this.unitOfWork.policyTemplates.getAll();
     const policy = this.pipeline.expander.expand(merged, templates);
 
 
-    const previous = await this.repository.getCompiledEvidencePolicy(request.delegationStackId, request.evidenceId);
-    const compiled = await this.repository.saveCompiledEvidencePolicy({
+    const previous = await this.unitOfWork.compiledEvidencePolicies.getForStack(
+      request.delegationStackId,
+      request.evidenceId,
+    );
+    const compiled = await this.unitOfWork.compiledEvidencePolicies.save({
       delegationStackId: request.delegationStackId,
       evidenceId: request.evidenceId,
       policy,
@@ -126,7 +129,7 @@ export class EvidencePublishService {
 
   /** Loads the evidence, the stack and each row's observed policy. Returns null when the stack itself cannot be published. */
   private async loadInput(request: PublishRequest, log: RunLog): Promise<PublishInput | null> {
-    const stack = await this.repository.getDelegationStack(request.delegationStackId);
+    const stack = await this.unitOfWork.orgDelegations.getDelegationStack(request.delegationStackId);
     if (stack.length === 0) {
       log.add('error', 'STACK_NOT_FOUND', `Delegation stack '${request.delegationStackId}' has no rows.`);
       return null;
@@ -142,7 +145,7 @@ export class EvidencePublishService {
       return null;
     }
 
-    const evidence = await this.repository.getEvidence(request.evidenceId);
+    const evidence = await this.unitOfWork.evidences.get(request.evidenceId);
     if (evidence === null) {
       log.add('error', 'EVIDENCE_NOT_FOUND', `Evidence '${request.evidenceId}' does not exist.`);
       return null;
@@ -150,7 +153,7 @@ export class EvidencePublishService {
 
     const rows: ObservedRow[] = [];
     for (const row of stack) {
-      const delegation = await this.repository.getEvidenceDelegation(row.stableId, request.evidenceId);
+      const delegation = await this.unitOfWork.evidenceDelegations.getForRow(row.stableId, request.evidenceId);
       if (delegation === null || delegation.observedPolicy === null) {
         log.add(
           'error',
@@ -185,16 +188,16 @@ export class EvidencePublishService {
     log: RunLog,
   ): Promise<PublishLog> {
     if (outcome === 'REJECTED') {
-      this.repository.discardChanges();
+      this.unitOfWork.discardChanges();
     }
-    const stored = await this.repository.appendPublishLog({
+    const stored = await this.unitOfWork.publishLogs.record({
       delegationStackId: request.delegationStackId,
       evidenceId: request.evidenceId,
       startedAt,
       outcome,
       entries: log.entries(),
     });
-    await this.repository.saveChanges();
+    await this.unitOfWork.saveChanges();
     return stored;
   }
 }

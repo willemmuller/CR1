@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { EvidencePublishService, compiledPolicyId, loadDataset } from '../src';
-import type { Dataset, Diagnostic, Policy } from '../src';
+import { EvidencePublishService, compiledPolicyId } from '../src';
+import type { Diagnostic, Policy } from '../src';
+import { loadDataset } from './support/dataset';
+import type { Dataset } from './support/dataset';
 import { FakePipeline } from './support/fakePipeline';
 import type { FakePipelineOptions } from './support/fakePipeline';
 import {
@@ -28,7 +30,7 @@ interface Setup extends Harness {
 async function setup(options: FakePipelineOptions = {}, dataset?: Dataset): Promise<Setup> {
   const harness = await createGuildLicenceHarness(dataset);
   const pipeline = new FakePipeline(options);
-  const service = new EvidencePublishService(harness.repository, pipeline, harness.clock);
+  const service = new EvidencePublishService(harness.unitOfWork, pipeline, harness.clock);
   return { ...harness, pipeline, service };
 }
 
@@ -70,38 +72,38 @@ describe('EvidencePublishService.publish', () => {
     });
 
     it('stores each row\'s fragment on that row as a new version', async () => {
-      const { service, repository, context } = await setup();
+      const { service, unitOfWork } = await setup();
 
       const result = await service.publish(REQUEST);
 
       expect(result.kind).toBe('published');
-      const row1 = await repository.getEvidenceDelegation(ROW_1_ID, EVIDENCE_ID);
-      const row2 = await repository.getEvidenceDelegation(ROW_2_ID, EVIDENCE_ID);
+      const row1 = await unitOfWork.evidenceDelegations.getForRow(ROW_1_ID, EVIDENCE_ID);
+      const row2 = await unitOfWork.evidenceDelegations.getForRow(ROW_2_ID, EVIDENCE_ID);
       expect(row1).toMatchObject({ temporalId: `${DELEGATION_1_ID}_v2`, from: T1, to: null });
       expect(row2).toMatchObject({ temporalId: `${DELEGATION_2_ID}_v2`, from: T1, to: null });
       expect(stepIds(row1?.policyFragment)).toEqual(['documentReadiness', 'attendAssessment']);
       expect(stepIds(row2?.policyFragment)).toEqual(['attendAssessment']);
-      expect(repository.history(context.evidenceDelegations, DELEGATION_1_ID).map((row) => row.to)).toEqual([T1, null]);
+      expect(unitOfWork.evidenceDelegations.history(DELEGATION_1_ID).map((row) => row.to)).toEqual([T1, null]);
     });
 
     it('leaves the observed policies as they were', async () => {
-      const { service, repository } = await setup();
-      const before = (await repository.getEvidenceDelegation(ROW_2_ID, EVIDENCE_ID))!.observedPolicy;
+      const { service, unitOfWork } = await setup();
+      const before = (await unitOfWork.evidenceDelegations.getForRow(ROW_2_ID, EVIDENCE_ID))!.observedPolicy;
 
       await service.publish(REQUEST);
 
-      const after = (await repository.getEvidenceDelegation(ROW_2_ID, EVIDENCE_ID))!.observedPolicy;
+      const after = (await unitOfWork.evidenceDelegations.getForRow(ROW_2_ID, EVIDENCE_ID))!.observedPolicy;
       expect(after).toEqual(before);
     });
 
     it('stores one compiled policy built from the expanded merge, with the evidence schema passed through', async () => {
-      const { service, repository, pipeline } = await setup();
+      const { service, unitOfWork, pipeline } = await setup();
 
       const result = await service.publish(REQUEST);
 
       const [expand] = pipeline.callsTo('expand');
-      const evidence = await repository.getEvidence(EVIDENCE_ID);
-      const compiled = await repository.getCompiledEvidencePolicy(STACK_ID, EVIDENCE_ID);
+      const evidence = await unitOfWork.evidences.get(EVIDENCE_ID);
+      const compiled = await unitOfWork.compiledEvidencePolicies.getForStack(STACK_ID, EVIDENCE_ID);
       expect(compiled).toEqual({
         stableId: compiledPolicyId(STACK_ID, EVIDENCE_ID),
         temporalId: `${compiledPolicyId(STACK_ID, EVIDENCE_ID)}_v1`,
@@ -118,7 +120,7 @@ describe('EvidencePublishService.publish', () => {
     });
 
     it('logs what was stored, in order, and saves the log', async () => {
-      const { service, repository } = await setup();
+      const { service, unitOfWork } = await setup();
 
       const result = await service.publish(REQUEST);
 
@@ -133,7 +135,7 @@ describe('EvidencePublishService.publish', () => {
           { sequence: 3, level: 'info', code: 'POLICY_COMPILED' },
         ],
       });
-      expect(await repository.getPublishLogs(STACK_ID, EVIDENCE_ID)).toEqual([result.log]);
+      expect(await unitOfWork.publishLogs.getRuns(STACK_ID, EVIDENCE_ID)).toEqual([result.log]);
     });
 
     it('leaves nothing staged', async () => {
@@ -169,22 +171,22 @@ describe('EvidencePublishService.publish', () => {
 
   describe('publishing again', () => {
     it('stores no new versions when nothing changed, and still logs the run', async () => {
-      const { service, repository, context, clock } = await setup();
+      const { service, unitOfWork, clock } = await setup();
       const first = await service.publish(REQUEST);
       clock.set(T2);
 
       const second = await service.publish(REQUEST);
 
       expect(second.kind === 'published' && second.compiled).toEqual(first.kind === 'published' && first.compiled);
-      expect(repository.history(context.evidenceDelegations, DELEGATION_1_ID)).toHaveLength(2);
-      expect(repository.history(context.evidenceDelegations, DELEGATION_2_ID)).toHaveLength(2);
-      expect(repository.history(context.compiledEvidencePolicies, compiledPolicyId(STACK_ID, EVIDENCE_ID))).toHaveLength(1);
+      expect(unitOfWork.evidenceDelegations.history(DELEGATION_1_ID)).toHaveLength(2);
+      expect(unitOfWork.evidenceDelegations.history(DELEGATION_2_ID)).toHaveLength(2);
+      expect(unitOfWork.compiledEvidencePolicies.history(compiledPolicyId(STACK_ID, EVIDENCE_ID))).toHaveLength(1);
       expect(second.log.entries.map((entry) => entry.code)).toEqual([
         'FRAGMENT_UNCHANGED',
         'FRAGMENT_UNCHANGED',
         'POLICY_UNCHANGED',
       ]);
-      const logs = await repository.getPublishLogs(STACK_ID, EVIDENCE_ID);
+      const logs = await unitOfWork.publishLogs.getRuns(STACK_ID, EVIDENCE_ID);
       expect(logs.map((log) => [log.temporalId, log.startedAt])).toEqual([
         [first.log.temporalId, T1],
         [second.log.temporalId, T2],
@@ -192,13 +194,13 @@ describe('EvidencePublishService.publish', () => {
     });
 
     it('recompiles when one row\'s observed policy changes, re-versioning only that row', async () => {
-      const { service, repository, context, clock } = await setup();
+      const { service, unitOfWork, clock } = await setup();
       await service.publish(REQUEST);
       const dataset = readDataset('guild-licence');
       dataset.evidenceDelegations![1]!.observedPolicy!.steps!.push({ stepId: 'collectLicence' });
       clock.set(T2);
       // Reloading gives row 2 a v3 that holds the new observed policy and the fragment from the last publish.
-      await loadDataset(repository, context, dataset);
+      await loadDataset(unitOfWork, dataset);
 
       const result = await service.publish(REQUEST);
 
@@ -207,19 +209,19 @@ describe('EvidencePublishService.publish', () => {
         'FRAGMENT_STORED',
         'POLICY_COMPILED',
       ]);
-      const compiled = await repository.getCompiledEvidencePolicy(STACK_ID, EVIDENCE_ID);
+      const compiled = await unitOfWork.compiledEvidencePolicies.getForStack(STACK_ID, EVIDENCE_ID);
       expect(compiled?.temporalId).toBe(`${compiledPolicyId(STACK_ID, EVIDENCE_ID)}_v2`);
       expect(compiled?.builtFrom).toEqual([`${DELEGATION_1_ID}_v2`, `${DELEGATION_2_ID}_v4`, `${TEMPLATE_ID}_v1`]);
       expect(stepIds(compiled?.policy)).toContain('collectLicence');
     });
 
     it('recompiles when a template changes, without touching the fragments', async () => {
-      const { service, repository, context, clock } = await setup();
+      const { service, unitOfWork, clock } = await setup();
       await service.publish(REQUEST);
       const dataset = readDataset('guild-licence');
       dataset.policyTemplates![0]!.content = { steps: [] };
       clock.set(T2);
-      await loadDataset(repository, context, { policyTemplates: dataset.policyTemplates! });
+      await loadDataset(unitOfWork, { policyTemplates: dataset.policyTemplates! });
 
       const result = await service.publish(REQUEST);
 
@@ -228,7 +230,7 @@ describe('EvidencePublishService.publish', () => {
         'FRAGMENT_UNCHANGED',
         'POLICY_COMPILED',
       ]);
-      const compiled = await repository.getCompiledEvidencePolicy(STACK_ID, EVIDENCE_ID);
+      const compiled = await unitOfWork.compiledEvidencePolicies.getForStack(STACK_ID, EVIDENCE_ID);
       expect(compiled?.builtFrom).toEqual([`${DELEGATION_1_ID}_v2`, `${DELEGATION_2_ID}_v2`, `${TEMPLATE_ID}_v2`]);
     });
   });
@@ -281,29 +283,29 @@ describe('EvidencePublishService.publish', () => {
     });
 
     it('stores the log and nothing else', async () => {
-      const { service, repository, context } = await setup({ validate: () => [error] });
+      const { service, unitOfWork, context } = await setup({ validate: () => [error] });
 
       const result = await service.publish(REQUEST);
 
-      expect(repository.history(context.evidenceDelegations, DELEGATION_1_ID)).toHaveLength(1);
-      expect(repository.history(context.evidenceDelegations, DELEGATION_2_ID)).toHaveLength(1);
-      expect(await repository.getCompiledEvidencePolicy(STACK_ID, EVIDENCE_ID)).toBeNull();
-      expect(await repository.getPublishLogs(STACK_ID, EVIDENCE_ID)).toEqual([result.log]);
+      expect(unitOfWork.evidenceDelegations.history(DELEGATION_1_ID)).toHaveLength(1);
+      expect(unitOfWork.evidenceDelegations.history(DELEGATION_2_ID)).toHaveLength(1);
+      expect(await unitOfWork.compiledEvidencePolicies.getForStack(STACK_ID, EVIDENCE_ID)).toBeNull();
+      expect(await unitOfWork.publishLogs.getRuns(STACK_ID, EVIDENCE_ID)).toEqual([result.log]);
       expect(context.hasStagedChanges()).toBe(false);
     });
 
     it('keeps the last published policy when a later publish is rejected', async () => {
       let failing = false;
-      const { service, repository } = await setup({ validate: () => (failing ? [error] : []) });
+      const { service, unitOfWork } = await setup({ validate: () => (failing ? [error] : []) });
       await service.publish(REQUEST);
-      const published = await repository.getCompiledEvidencePolicy(STACK_ID, EVIDENCE_ID);
+      const published = await unitOfWork.compiledEvidencePolicies.getForStack(STACK_ID, EVIDENCE_ID);
       failing = true;
 
       const result = await service.publish(REQUEST);
 
       expect(result.kind).toBe('rejected');
-      expect(await repository.getCompiledEvidencePolicy(STACK_ID, EVIDENCE_ID)).toEqual(published);
-      expect((await repository.getPublishLogs(STACK_ID, EVIDENCE_ID)).map((log) => log.outcome)).toEqual([
+      expect(await unitOfWork.compiledEvidencePolicies.getForStack(STACK_ID, EVIDENCE_ID)).toEqual(published);
+      expect((await unitOfWork.publishLogs.getRuns(STACK_ID, EVIDENCE_ID)).map((log) => log.outcome)).toEqual([
         'PUBLISHED',
         'REJECTED',
       ]);
