@@ -89,6 +89,7 @@ src/entities      one file per entity: ADEO (the records and their types), Evide
 src/repository    one repository per entity over a data context, a unit of work, an in-memory context
 src/services      services over the repositories
 fixtures/stacks   example delegation stacks
+schemas           JSON Schemas: the evidence policy, the base value types for document schemas, the person graph
 test              tests, with a dataset loader for the fixtures
 ```
 

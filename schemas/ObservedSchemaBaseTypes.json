@@ -1,0 +1,450 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:adeo:schema:base-types:1.0.0",
+  "title": "Base types",
+  "description": "Canonical value types for issued-evidence schemas. Values are stored in canonical form (ISO 8601, decimal strings, E.164, ISO 4217/3166); how the issued document prints a value is recorded per field with x-displayFormat. Use native string and boolean for free text and two-state flags.",
+  "$comment": "Usage in an evidence schema: { \"$ref\": \"urn:adeo:schema:base-types:1.0.0#/$defs/PartialDateTime\", \"title\": \"Date of issue\", \"x-order\": 3, \"x-precision\": \"day\", \"x-displayFormat\": \"dd/MM/yyyy\" }. A lookup key adds \"x-lookupKey\": \"instance\" or \"evidence\", e.g. { \"$ref\": \"urn:adeo:schema:base-types:1.0.0#/$defs/PartialDateTime\", \"title\": \"Date of birth\", \"x-order\": 4, \"x-precision\": \"day\", \"x-lookupKey\": \"instance\" }. Provenance markers are ordinary properties, named by their 'title' as printed or described (e.g. 'Registrar's signature', 'Registry seal'): { \"$ref\": \"urn:adeo:schema:base-types:1.0.0#/$defs/ProvenanceMarker\", \"title\": \"Registrar's signature\", \"x-order\": 12, \"properties\": { \"kind\": { \"const\": \"signature\" }, \"appliedBy\": { \"const\": \"registrar\" } } }, with the declared characteristics fixed by 'const' and the observation left to the instance. 'title' carries the field name as printed on the issued document, in the document's language. Custom keywords (x-*) are annotations: standard validators ignore them; the pipeline enforces them.",
+  "x-keywords": {
+    "x-order": "Every property, at any nesting level, including provenance-marker properties. Display order of the field or marker on the issued document: integer starting at 1, contiguous, and reset within each nesting level (root properties, array item properties, composite sub-properties). Markers without a reading-order position (e.g. a watermark across the page) are ordered after the field they sit nearest, with 'location' recording where they are.",
+    "x-displayFormat": "How the issued document prints the value. Syntax depends on the type; see x-displayFormatConventions.",
+    "x-precision": "PartialDateTime / PartialDateTimePeriod only. Minimum precision the document prints: year | month | day | minute | second | time. Use 'time' for time-only fields (no date part).",
+    "x-unit": "Decimal only. Fixed unit (UCUM code) when the unit is implied by the field rather than printed with the value.",
+    "x-currency": "Money only. Fixed currency (ISO 4217 code) when the currency is implied by the field rather than printed with the amount, e.g. 'XTS'. Instance values must carry the same code in Money.currency.",
+    "x-lookupKey": "Any property, any type, at root level. Marks the field as a typical lookup key, i.e. a value that is typically quoted or searched for. 'instance': used to look up a user's instance of the evidence (e.g. policy number, passport number, date of birth, mobile number). 'evidence': used to identify which evidence a document is (e.g. a form code such as 'GL-2', a licence category code). Omit for fields that are not lookup keys, including fields of the Identifier type that nobody searches by. Not used on provenance-marker properties.",
+    "x-irlSource": "Code only, and the generated reference-list schemas. Where the owner of the list publishes it: a URL or citation, or a list of them. On an inline Code it points at where the list can be completed."
+  },
+  "x-displayFormatConventions": {
+    "PartialDateTime": "Unicode CLDR / ICU date-time pattern, e.g. 'dd/MM/yyyy', 'd MMMM yyyy', 'MMMM yyyy', 'yyyy', 'HH:mm', 'h:mm a'.",
+    "PartialDateTimePeriod": "Template with {from} and {to} placeholders, each optionally carrying an ICU pattern, e.g. '{from:dd/MM/yyyy} to {to:dd/MM/yyyy}', 'from {from:d MMMM yyyy}'.",
+    "Duration": "Template using ISO 8601 duration components {Y} {M} {W} {D} {H} {MI} {S}, e.g. '{M} months', '{Y} years {M} months', '{D} days'.",
+    "Decimal": "Unicode CLDR / ICU number pattern, e.g. '#,##0.00', '0.0', '#,##0'.",
+    "Identifier": "Mask: '#' digit, 'A' letter, '*' any character, other characters literal, e.g. 'AA ## ## ## A' (NI number), '##-##-##' (sort code).",
+    "Money": "ICU number pattern with currency symbol placeholder '¤' (symbol) or '¤¤' (ISO code), e.g. '¤#,##0.00', '#,##0.00 ¤¤'.",
+    "Quantity": "ICU number pattern followed by a {unit} placeholder or literal unit text, e.g. '#,##0 {unit}', '#,##0 kWh'.",
+    "PostalAddress": "Template over address parts, '\\n' for line breaks, e.g. '{lines}\\n{city}\\n{postalCode}' or '{text}' when printed as one block.",
+    "PersonName": "Template over name parts with optional ':upper' modifier, e.g. '{given} {family}', '{family:upper}, {given}', '{fullName}'.",
+    "PhoneNumber": "Mask as for Identifier, applied to the national form, e.g. '#### ### ####'.",
+    "ProvenanceMarker": "Not used; a marker has no printed value. Record where it sits in 'location' (fixed with 'const' in the evidence schema when known).",
+    "boolean": "Object mapping the two values to printed labels, e.g. {\"true\": \"Yes\", \"false\": \"No\"}. Use Code instead if the document has a third state (not stated, N/A)."
+  },
+  "$defs": {
+    "PartialDateTime": {
+      "title": "Partial date-time",
+      "description": "ISO 8601 date and/or time at any precision: year, year-month, date, date-time (optional seconds, fraction, offset), or time only.",
+      "type": "string",
+      "pattern": "^(?:\\d{4}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\\d|3[01])(?:T(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)?)?)?)?|T?(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$",
+      "examples": [
+        "1987",
+        "1987-06",
+        "1987-06-14",
+        "1987-06-14T09:30",
+        "2025-03-01T14:05:00Z",
+        "09:30"
+      ]
+    },
+    "PartialDateTimePeriod": {
+      "title": "Partial date-time period",
+      "description": "Span between two partial date-times. Either end may be absent for open-ended periods (e.g. 'valid from').",
+      "type": "object",
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/PartialDateTime",
+          "title": "period start"
+        },
+        "to": {
+          "$ref": "#/$defs/PartialDateTime",
+          "title": "period end"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "from"
+          ]
+        },
+        {
+          "required": [
+            "to"
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "from": "2025-03-01",
+          "to": "2026-02-28"
+        },
+        {
+          "from": "2024-04-06"
+        }
+      ]
+    },
+    "Duration": {
+      "title": "Duration",
+      "description": "ISO 8601 duration (length of time, not anchored to a date).",
+      "type": "string",
+      "format": "duration",
+      "pattern": "^P(?!$)(?:\\d+Y)?(?:\\d+M)?(?:\\d+W)?(?:\\d+D)?(?:T(?=\\d)(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$",
+      "examples": [
+        "P6M",
+        "P2Y",
+        "P90D",
+        "P1Y6M",
+        "PT36H"
+      ]
+    },
+    "Decimal": {
+      "title": "Decimal",
+      "description": "Exact decimal number as a string (no thousands separators, '.' as decimal point). Avoids binary floating-point rounding.",
+      "type": "string",
+      "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+      "examples": [
+        "0",
+        "12.50",
+        "-3.75",
+        "1234567.89"
+      ]
+    },
+    "Identifier": {
+      "title": "Identifier",
+      "description": "Issuer-assigned identifier in canonical form (no leading/trailing whitespace; issuer formatting such as spaces or dashes removed where not significant). Add a field-level 'pattern' for known formats. The Identifier type describes the value's shape only; whether a field is a lookup key is declared separately with x-lookupKey, on any type.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "examples": [
+        "AB123456C",
+        "123456",
+        "1234567890"
+      ]
+    },
+    "Code": {
+      "title": "Code",
+      "description": "A value selected from a fixed list: a finite set defined independently of, and prior to, any individual document or person. Use Code whenever the issuer assigns or selects the value, whether or not the list has been retrieved; use string only where no set of valid values could be enumerated in advance of the instance (free prose), and say why in the field description. Two forms at the point of use. Reference list: the field $refs the generated list schema (urn:adeo:schema:cr:<CC>:<Name>:1.0.0) and carries no values; that list is closed. Inline: the field is anyOf [{const, title}…, {$ref Code}] — the observed values, then this type as the last branch, so unlisted values remain valid; an inline list is always open, and an empty anyOf collapses to a bare $ref. x-irlSource may name where the issuer publishes the list.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "examples": [
+        "basic",
+        "enhanced",
+        "standard",
+        "full extract"
+      ]
+    },
+    "Email": {
+      "title": "Email address",
+      "description": "Email address as printed, stored without surrounding whitespace or display name (e.g. 'Registrar <a@b>' is stored as 'a@b').",
+      "type": "string",
+      "format": "email",
+      "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+      "examples": [
+        "registrar@example.org"
+      ]
+    },
+    "Uri": {
+      "title": "URI",
+      "description": "Absolute URI as printed, e.g. a verification or check-online link. Must include the scheme (https://...); relative links are not allowed.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:\\S+$",
+      "examples": [
+        "https://example.org/check-certificate"
+      ]
+    },
+    "PhoneNumber": {
+      "title": "Phone number",
+      "description": "E.164 international format. Printed national form goes in x-displayFormat.",
+      "type": "string",
+      "pattern": "^\\+[1-9]\\d{1,14}$",
+      "examples": [
+        "+99955501234"
+      ]
+    },
+    "Money": {
+      "title": "Money",
+      "description": "Amount with ISO 4217 currency code.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/Decimal",
+          "title": "amount"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$",
+          "title": "currency (ISO 4217)"
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "amount": "1234.50",
+          "currency": "XTS"
+        }
+      ]
+    },
+    "Quantity": {
+      "title": "Quantity",
+      "description": "Measured value with unit (UCUM code preferred). Use Decimal with x-unit instead when the unit is fixed by the field.",
+      "type": "object",
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/Decimal",
+          "title": "value"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "title": "unit"
+        }
+      },
+      "required": [
+        "value",
+        "unit"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "value": "12345",
+          "unit": "kW.h"
+        },
+        {
+          "value": "38.5",
+          "unit": "h"
+        }
+      ]
+    },
+    "PostalAddress": {
+      "title": "Postal address",
+      "description": "Address as printed (text) and/or in parts. At least text or lines is required; other parts are optional.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "title": "address text"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "title": "address lines"
+        },
+        "locality": {
+          "type": "string",
+          "title": "locality"
+        },
+        "city": {
+          "type": "string",
+          "title": "post town or city"
+        },
+        "region": {
+          "type": "string",
+          "title": "county or region"
+        },
+        "postalCode": {
+          "type": "string",
+          "title": "postcode"
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "title": "country (ISO 3166-1 alpha-2)"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "text"
+          ]
+        },
+        {
+          "required": [
+            "lines"
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "text": "10 High Street, Port Zed, 08870"
+        },
+        {
+          "lines": [
+            "Flat 2",
+            "10 High Street"
+          ],
+          "city": "Port Zed",
+          "postalCode": "ZD1 1AA",
+          "country": "ZZ"
+        }
+      ]
+    },
+    "PersonName": {
+      "title": "Person name",
+      "description": "Name as printed (fullName) and/or in parts. Evidence schemas mark as required only the parts the document prints.",
+      "type": "object",
+      "properties": {
+        "fullName": {
+          "type": "string",
+          "minLength": 1,
+          "title": "full name"
+        },
+        "title": {
+          "type": "string",
+          "title": "title or honorific"
+        },
+        "given": {
+          "type": "string",
+          "title": "first name"
+        },
+        "middle": {
+          "type": "string",
+          "title": "middle names"
+        },
+        "family": {
+          "type": "string",
+          "title": "surname"
+        },
+        "birthFamily": {
+          "type": "string",
+          "title": "surname at birth (maiden surname)"
+        },
+        "alias": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": "other names used"
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false,
+      "examples": [
+        {
+          "given": "Jane",
+          "middle": "Anne",
+          "family": "Smith",
+          "birthFamily": "Jones"
+        },
+        {
+          "fullName": "JANE ANNE SMITH"
+        }
+      ]
+    },
+    "ProvenanceMarker": {
+      "title": "Provenance marker",
+      "description": "A marker on the issued document that lets a recipient verify its origin and authenticity (seal, stamp, signature, watermark, QR code, etc.). Declared as a regular property of the evidence schema, with its own title and x-order: the evidence schema fixes the marker's characteristics (kind, appliedBy, location) with 'const' and records notes or source URLs in the property's own 'description'; a UserEvidence instance records what was read from the actual document (encodedValue). Not a separate evidence or annex.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "title": "marker kind",
+          "type": "string",
+          "oneOf": [
+            {
+              "const": "signature",
+              "title": "Handwritten or printed signature"
+            },
+            {
+              "const": "digitalSignature",
+              "title": "Cryptographic digital signature"
+            },
+            {
+              "const": "seal",
+              "title": "Official seal (embossed or printed)"
+            },
+            {
+              "const": "stamp",
+              "title": "Ink or office stamp"
+            },
+            {
+              "const": "photo",
+              "title": "Holder photograph or facial image"
+            },
+            {
+              "const": "fingerprints",
+              "title": "Fingerprints (stored or printed)"
+            },
+            {
+              "const": "chip",
+              "title": "Embedded chip (e.g. biometric)"
+            },
+            {
+              "const": "machineReadableZone",
+              "title": "Machine readable zone (MRZ)"
+            },
+            {
+              "const": "qrCode",
+              "title": "QR code"
+            },
+            {
+              "const": "barcode",
+              "title": "Linear or 2D barcode other than QR"
+            },
+            {
+              "const": "hologram",
+              "title": "Hologram or optically variable device"
+            },
+            {
+              "const": "watermark",
+              "title": "Watermark"
+            },
+            {
+              "const": "logo",
+              "title": "Issuer logo or crest"
+            },
+            {
+              "const": "securityPaper",
+              "title": "Security paper or print feature"
+            },
+            {
+              "const": "securityFeature",
+              "title": "Other security feature"
+            }
+          ]
+        },
+        "appliedBy": {
+          "type": "string",
+          "minLength": 1,
+          "title": "role that applies the marker, e.g. 'registrar', 'notary', 'issuer', 'holder'"
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "title": "where the marker sits, e.g. 'bottom right', 'reverse'"
+        },
+        "encodedValue": {
+          "type": "string",
+          "minLength": 1,
+          "title": "decoded machine-readable content (MRZ lines, QR or barcode payload, chip data) as read from this document instance; absent for markers that encode nothing"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "kind": "seal",
+          "appliedBy": "issuer"
+        },
+        {
+          "kind": "signature",
+          "appliedBy": "registrar",
+          "location": "bottom right"
+        },
+        {
+          "kind": "qrCode",
+          "encodedValue": "https://example.org/check-certificate?ref=001234567890"
+        }
+      ]
+    }
+  }
+}

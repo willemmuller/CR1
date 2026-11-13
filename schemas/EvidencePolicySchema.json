@@ -1,0 +1,789 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:adeo:schema:evidence-policy:0.1.0",
+  "title": "Evidence Policy",
+  "description": "Authored EvidencePolicy. The value of EvidenceDelegation.ObservedPolicy, Authority.EvidencePolicyFragment and EvidenceDelegation.EvidencePolicyFragment: a list of Policies, one per sequence (firstIssue, reIssue). CompiledEvidencePolicy.ADEOPolicy has the same shape after expansion. Hand-built from the spec (no generator); the constraints the spec states in prose that JSON Schema cannot express are listed in x-constraints.",
+  "$comment": "Expressions (includeIf, enableIf, defaultIf, Rule.query, Fact.query, FactEntry.query) are JSONata strings evaluated with the task's bindings ($applicant, $channel, $name for each resolved evidence, Fact and Detail, $step/$stepOutcome/$stepAttempt, $today/$age/$within). An empty string means 'always' for includeIf/enableIf and 'recorded by the user only' for defaultIf. Enums are plain strings.",
+  "x-constraints": [
+    "Policy: at most one Policy per sequence in the list.",
+    "Policy: the first StepType SHOULD carry the 'documentReadiness' template, with the default Outcome's inputEvidences listing every terminal evidence the applicant must already hold.",
+    "Namespace: ResolvedEvidence.name, Channel.name, Fact.name and Detail.name are unique within the Policy (Outcomes of one StepType may share a Fact or Detail name) and must not clash with a function name ($today, $stepOutcome, …) or a task-bound value ($applicant).",
+    "StepType.stepId is unique within the Policy (nested sub-steps included); Outcome.outcomeId is unique within its StepType; Rule.ruleId is unique within the Policy.",
+    "StepType: exactly one positive Outcome (stepState SUCCEEDED) has defaultIf 'true'.",
+    "StepType.channels[].name and EvidenceUse.name reference entries declared in Policy.channels / Policy.resolvedEvidences.",
+    "Dependencies: $step(stepId), $stepOutcome(stepId, outcome) and $stepAttempt(stepId) take string literals naming a StepType and Outcome of this Policy; calls in includeIf are branch edges, calls in enableIf are ordering edges; no cycles other than a StepType referring to itself.",
+    "Presence: no includeIf, Rule.query or Fact.query tests whether an evidence is bound ($exists($name)), except Channel.includeIf. An EvidenceUse entry is itself the presence check.",
+    "Read boundary: no expression reads the graph's evidences root; documents are read only as bound evidence.",
+    "Facts: a Fact query never returns a literal object; amounts, places and orgs come from bound evidence or the graph.",
+    "EvidenceUse.direction: omitted or empty on documentReadiness and other steps that only need the document held; 'present' or 'handover' on inputEvidences, 'issued' or 'returned' on outputEvidences of every other step.",
+    "EvidenceQuery.authorityTypes: mandatory for parameterised authority types, omitted for issuer-less evidenceTypes."
+  ],
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/Policy"
+  },
+  "$defs": {
+    "Expression": {
+      "type": "string",
+      "description": "A JSONata expression over the task bindings. Empty means no condition."
+    },
+    "Name": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z0-9]*$",
+      "description": "camelCase identifier, injected as $name."
+    },
+    "Id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+    },
+    "Policy": {
+      "type": "object",
+      "description": "How a person obtains ONE terminal evidence from ONE issuing org, as an ordered, nestable list of StepTypes.",
+      "properties": {
+        "sequence": {
+          "type": "string",
+          "enum": [
+            "firstIssue",
+            "reIssue"
+          ],
+          "description": "Which issuance flow this Policy describes. reIssue covers renewal, replacement and change of details."
+        },
+        "resolvedEvidences": {
+          "type": "array",
+          "description": "Every document this Policy uses, declared once with its resolver; bound once per task and read as $name.",
+          "items": {
+            "$ref": "#/$defs/ResolvedEvidence"
+          }
+        },
+        "channels": {
+          "type": "array",
+          "description": "Every channel to the issuing org this Policy uses, declared once; StepTypes reference them by name. Empty in a lower fragment that leaves channels to the applicant-facing row.",
+          "items": {
+            "$ref": "#/$defs/Channel"
+          }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Top-level StepTypes in display order. Ordering comes only from enableIf.",
+          "items": {
+            "$ref": "#/$defs/StepType"
+          }
+        }
+      },
+      "required": [
+        "sequence",
+        "resolvedEvidences",
+        "channels",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "ResolvedEvidence": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Name",
+          "description": "Named after the document, not its use (identityCard, applicationForm, feeReceipt). Same artefact, same name across every row of a delegation stack."
+        },
+        "evidenceResolver": {
+          "$ref": "#/$defs/EvidenceResolver"
+        }
+      },
+      "required": [
+        "name",
+        "evidenceResolver"
+      ],
+      "additionalProperties": false
+    },
+    "EvidenceResolver": {
+      "type": "object",
+      "description": "Finds candidates in the vault. Queries are OR'd alternatives the user chooses between.",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "The requirement as the issuing org would phrase it ('Valid passport')."
+        },
+        "queries": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/EvidenceQuery"
+          }
+        }
+      },
+      "required": [
+        "description",
+        "queries"
+      ],
+      "additionalProperties": false
+    },
+    "QueryValue": {
+      "type": "string",
+      "description": "A literal, or a JSONata query over the graph and CountryLists (e.g. \"$countryList('APPROVED_ASSESSMENT_CENTRES')\", \"$not('ZEDLAND')\")."
+    },
+    "EvidenceQuery": {
+      "type": "object",
+      "description": "Selects issuable evidences from the ADEO dataset. Values within an array are OR'd filters; fields are AND'd. A null value means no restriction.",
+      "properties": {
+        "evidenceTypes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/QueryValue"
+          }
+        },
+        "jurisdictions": {
+          "type": "array",
+          "description": "Literal Place ids, or symbolic ORIGIN, DESTINATION, ISSUING resolved from plan.corridor.",
+          "items": {
+            "$ref": "#/$defs/QueryValue"
+          }
+        },
+        "evidences": {
+          "type": "array",
+          "description": "Evidence ids.",
+          "items": {
+            "$ref": "#/$defs/QueryValue"
+          }
+        },
+        "authorityTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QueryValue"
+          }
+        },
+        "authorityAttributes": {
+          "type": "object",
+          "description": "Authority segments: regulatedDomain, regulatedActivity, profession, examType, financialCustodianType, insuranceProviderType, transportMode, …",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QueryValue"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/QueryValue"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "evidenceAttributes": {
+          "type": "object",
+          "description": "Evidence segments: licenceClass, formFactor, …",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QueryValue"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/QueryValue"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "orgs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QueryValue"
+          }
+        }
+      },
+      "required": [
+        "evidenceTypes"
+      ],
+      "additionalProperties": false
+    },
+    "ChannelType": {
+      "type": "string",
+      "enum": [
+        "phone",
+        "email",
+        "post",
+        "digital",
+        "inPerson",
+        "videoCall",
+        "messaging",
+        "kiosk"
+      ],
+      "description": "phone, email, digital, videoCall, messaging resolve to a Contact; inPerson, kiosk, post to a Location."
+    },
+    "Channel": {
+      "type": "object",
+      "description": "A task-specific door to the issuing org: open to whom, needing what. Read as $channel by the step that chose it.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Name",
+          "description": "Named after the channel, not the step (groOnline, postToLegalisationOffice)."
+        },
+        "channelType": {
+          "$ref": "#/$defs/ChannelType"
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Which of the org's channels of that type (booking, application, collection, complaints, headOffice, …). Open vocabulary; omit when any channel of the type will do."
+        },
+        "includeIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Is this channel OPEN to this applicant? The one includeIf that MAY read whether an evidence is bound (\"$exists($groAccount)\")."
+        }
+      },
+      "required": [
+        "name",
+        "channelType"
+      ],
+      "additionalProperties": false
+    },
+    "StepChannelRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Name",
+          "description": "A Policy channel, by name."
+        },
+        "includeIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Step-scoped: this step can use the channel when the Policy channel's includeIf AND this one hold."
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Template": {
+      "type": "string",
+      "enum": [
+        "documentReadiness",
+        "makeAppointment",
+        "attendAppointment",
+        "submitRequest",
+        "attendCollection",
+        "receiveResponse",
+        "homeCourierPickup",
+        "homeCourierDelivery"
+      ]
+    },
+    "Activity": {
+      "type": "string",
+      "enum": [
+        "takeTest",
+        "takeExam",
+        "takePhoto",
+        "xray",
+        "takeBiometrics",
+        "interview",
+        "attestation",
+        "signing"
+      ],
+      "description": "Things the applicant physically does during the step. Payment is not an activity: it follows from a fee Fact."
+    },
+    "StepType": {
+      "type": "object",
+      "description": "The definition of a step; at runtime each task has a step per included StepType.",
+      "properties": {
+        "stepId": {
+          "$ref": "#/$defs/Name",
+          "description": "Unique within the Policy. Referenced by $step / $stepOutcome / $stepAttempt."
+        },
+        "instruction": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "UX heading."
+            },
+            "text": {
+              "type": "string",
+              "description": "Plain-language guidance; may reference facts (\"Pay $feeDue.amount\")."
+            }
+          },
+          "required": [
+            "title",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "templates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Template"
+          },
+          "description": "Versioned templates whose standard Outcomes and derived steps are injected at expansion. Several are merged."
+        },
+        "activities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Activity"
+          }
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepChannelRef"
+          },
+          "description": "Which Policy channels this step can use, in the author's preference order. Empty for steps with no org contact (documentReadiness). Omit or leave empty for steps with no org contact (documentReadiness)."
+        },
+        "includeIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Does this step EXIST for this applicant? Situation or earlier choices; never the presence of an evidence. May read another step's outcome to put this step on a branch."
+        },
+        "enableIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Can this step be done YET? Other steps' outcomes, deadlines, arrival. 'and' / 'or' allowed. False = shown greyed, not hidden."
+        },
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/Outcome"
+          },
+          "description": "Exactly one positive Outcome is the default (defaultIf 'true'). Global and template Outcomes are injected at expansion."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepType"
+          },
+          "description": "Optional nested sub-steps: a multi-step activity, or a route that only applies under one includeIf. A parent succeeds when one of its own positive Outcomes succeeds; children inherit the parent's facts."
+        }
+      },
+      "required": [
+        "stepId",
+        "instruction",
+        "templates",
+        "outcomes"
+      ],
+      "additionalProperties": false
+    },
+    "StepState": {
+      "type": "string",
+      "enum": [
+        "IN_PROGRESS",
+        "WAITING",
+        "SUCCEEDED",
+        "FAILED"
+      ],
+      "description": "What recording the Outcome does to the step. Only SUCCEEDED is positive: IN_PROGRESS closes the attempt and the step runs again; WAITING is pending on something external; FAILED ends the step with no further attempts."
+    },
+    "TaskState": {
+      "type": "string",
+      "enum": [
+        "IN_PROGRESS",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "description": "What recording the Outcome does to the Task: COMPLETED when the terminal evidence was delivered; FAILED when no way is left to deliver it; CANCELLED when someone withdrew."
+    },
+    "Outcome": {
+      "type": "object",
+      "properties": {
+        "outcomeId": {
+          "$ref": "#/$defs/Name",
+          "description": "Unique within the StepType."
+        },
+        "stepState": {
+          "$ref": "#/$defs/StepState"
+        },
+        "taskState": {
+          "$ref": "#/$defs/TaskState"
+        },
+        "defaultIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "'true' = the default Outcome (exactly one positive per StepType); a condition = raised by the system when it becomes true; empty = recorded only by the user or provider."
+        },
+        "title": {
+          "type": "string",
+          "description": "Button text."
+        },
+        "description": {
+          "type": "string",
+          "description": "Help text."
+        },
+        "includeIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Does this Outcome EXIST for this applicant? May read this step's own attempt count or $channel."
+        },
+        "enableIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Can this Outcome be chosen YET? e.g. a deadline."
+        },
+        "inputEvidences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceUse"
+          },
+          "description": "Documents used at this step. All included, non-optional entries must be bound for the Outcome to be available. On the default Outcome an unbound terminal evidence spawns a dependent task."
+        },
+        "inputDetails": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Detail"
+          },
+          "description": "Values the applicant supplies that are not documents."
+        },
+        "inputRules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Rule"
+          },
+          "description": "All included rules must PASS for the Outcome to be available. They judge the input evidence, never its presence."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Fact"
+          },
+          "description": "Derived values: fees, appointment, attendance, representation, generic. Evaluated continuously, before the Outcome is chosen."
+        },
+        "outputEvidences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceUse"
+          },
+          "description": "Documents issued or handed back. All included, non-optional entries must be bound for a SUCCEEDED Outcome to make the step succeed."
+        },
+        "outputRules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Rule"
+          },
+          "description": "All included rules must PASS for a SUCCEEDED Outcome to make the step succeed."
+        }
+      },
+      "required": [
+        "outcomeId",
+        "stepState",
+        "taskState",
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "EvidenceUse": {
+      "type": "object",
+      "description": "One use of a resolved evidence at a step. Bindings belong to the resolved evidence, not the use.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Name",
+          "description": "A Policy resolvedEvidences entry, by name."
+        },
+        "includeIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Does this entry EXIST for this applicant? Situation or a choice made (\"$applicationForm.instance.reason = 'renewal'\"), never whether an evidence is present."
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "",
+            "present",
+            "handover",
+            "issued",
+            "returned"
+          ],
+          "description": "How the document moves. Omit when the step only needs it held and bound. inputEvidences: present (shown, holder keeps it) or handover (leaves the holder's possession); outputEvidences: issued (new document) or returned (a handover given back)."
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "Shown, but does not block availability (input) or success (output)."
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Detail": {
+      "type": "object",
+      "description": "A value entered when choosing an Outcome, recorded on the Task (plan-side, not in the vault). Injected as $name.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Name"
+        },
+        "includeIf": {
+          "$ref": "#/$defs/Expression"
+        },
+        "title": {
+          "type": "string",
+          "description": "UX label."
+        },
+        "description": {
+          "type": "string",
+          "description": "Help text."
+        },
+        "schema": {
+          "type": "string",
+          "description": "A base type or value type from VaultGraphSpec §4.2 (PersonName, PhoneValue, PartialDateTime, …), or 'string' for free text."
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "Shown, but does not block availability."
+        }
+      },
+      "required": [
+        "name",
+        "title",
+        "schema"
+      ],
+      "additionalProperties": false
+    },
+    "Rule": {
+      "type": "object",
+      "description": "A pass/fail judgement on bound evidence, rendered tick / cross / greyed. Rules are flat: no nesting, no facts.",
+      "properties": {
+        "ruleId": {
+          "$ref": "#/$defs/Name",
+          "description": "Unique within the Policy; the merge key across fragments."
+        },
+        "includeIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Does this Rule EXIST for this applicant? Situation and choices only; never whether an evidence is present."
+        },
+        "description": {
+          "type": "string",
+          "description": "A 'Must …' sentence."
+        },
+        "group": {
+          "type": "string",
+          "description": "Optional UX heading to group rules under. Display only."
+        },
+        "query": {
+          "$ref": "#/$defs/Expression",
+          "description": "Pass/fail test over bound evidence, facts, $applicant and the plan; non-empty / true = pass. Never a presence test."
+        }
+      },
+      "required": [
+        "ruleId",
+        "description",
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "FactEntry": {
+      "type": "object",
+      "description": "One entry of a list-valued Fact (fee, attendance, representation).",
+      "properties": {
+        "includeIf": {
+          "$ref": "#/$defs/Expression"
+        },
+        "query": {
+          "$ref": "#/$defs/Query",
+          "description": "fee: resolves to { amount, currency, paymentMethods, payee }; attendance / representation: resolves a person id."
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "FactBase": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Name",
+          "description": "Unique within the Policy, except that Outcomes of the same StepType may share a name. Names injected by expansion are prefixed with their stepId."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "generic",
+            "fee",
+            "appointment",
+            "attendance",
+            "representation"
+          ]
+        },
+        "includeIf": {
+          "$ref": "#/$defs/Expression",
+          "description": "Does this Fact EXIST for this applicant? Situation or a choice made (\"$channel.channelType = 'inPerson'\"), never whether an evidence is present."
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "Fact": {
+      "description": "A derived value injected as $name. Facts describe, rules judge. The shape depends on type.",
+      "oneOf": [
+        {
+          "title": "GenericFact",
+          "allOf": [
+            {
+              "$ref": "#/$defs/FactBase"
+            }
+          ],
+          "properties": {
+            "name": true,
+            "includeIf": true,
+            "type": {
+              "const": "generic"
+            },
+            "query": {
+              "$ref": "#/$defs/Query",
+              "description": "A JSONata query returning the value, or a projection whose values are queries. Never a literal object."
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "title": "FeeFact",
+          "allOf": [
+            {
+              "$ref": "#/$defs/FactBase"
+            }
+          ],
+          "properties": {
+            "name": true,
+            "includeIf": true,
+            "type": {
+              "const": "fee"
+            },
+            "entries": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/FactEntry"
+              },
+              "description": "The amount due is the sum of the included entries: a base fee plus conditional surcharges or discounts, each read from bound evidence."
+            }
+          },
+          "required": [
+            "entries"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "title": "AppointmentFact",
+          "allOf": [
+            {
+              "$ref": "#/$defs/FactBase"
+            }
+          ],
+          "properties": {
+            "name": true,
+            "includeIf": true,
+            "type": {
+              "const": "appointment"
+            },
+            "query": {
+              "$ref": "#/$defs/Query",
+              "description": "Resolves to { date, time }, read from the confirmation evidence. The place is the step's channel pick, not a Fact field."
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "title": "AttendanceFact",
+          "allOf": [
+            {
+              "$ref": "#/$defs/FactBase"
+            }
+          ],
+          "properties": {
+            "name": true,
+            "includeIf": true,
+            "type": {
+              "const": "attendance"
+            },
+            "attendees": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/FactEntry"
+              },
+              "description": "Who must be physically present at the step; each entry resolves a person, usually through $applicant or $task().resolvedEvidences.holder."
+            }
+          },
+          "required": [
+            "attendees"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "title": "RepresentationFact",
+          "allOf": [
+            {
+              "$ref": "#/$defs/FactBase"
+            }
+          ],
+          "properties": {
+            "name": true,
+            "includeIf": true,
+            "type": {
+              "const": "representation"
+            },
+            "representatives": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/FactEntry"
+              },
+              "description": "Who acts for the applicant at the step. A step is delegable only if it has a representation entry."
+            }
+          },
+          "required": [
+            "representatives"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Projection": {
+      "type": "object",
+      "description": "A projection whose values are queries (or literal enum values such as a currency or payment methods): { amount: \"$modelo790.instance.amount\", currency: 'EUR', paymentMethods: ['bankTransfer'] }. Never a literal object: values that carry an org, fee or place come from bound evidence or the graph.",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/$defs/Projection"
+          }
+        ]
+      }
+    },
+    "Query": {
+      "description": "How a value is obtained: a JSONata query (string) returning the value, or a projection object whose values are queries.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Expression"
+        },
+        {
+          "$ref": "#/$defs/Projection"
+        }
+      ]
+    }
+  }
+}
