@@ -60,11 +60,11 @@ Every record has a `stableId` that identifies it across time and a `temporalId` 
 
 ```
 src/entities      one file per entity: the ADEO records and the parts of a policy
-src/repository    versioned storage over a data context, an in-memory context, a dataset loader
+src/repository    one repository per entity over a data context, a unit of work, an in-memory context
 src/pipeline      contracts for the stages that turn observed policies into a compiled one
-src/services      services over the repository
+src/services      services over the repositories
 fixtures/stacks   example delegation stacks
-test              tests
+test              tests, with a dataset loader for the fixtures
 ```
 
 The pipeline stages are contracts only; they are not implemented yet.

@@ -5,10 +5,10 @@ import type {
   Org,
   OrgDelegation,
   PolicyTemplate,
+  RecordBody,
+  UnitOfWork,
   VersionedRecord,
-} from '../entities';
-import type { DataContext } from './dataContext';
-import type { RecordBody, Repository } from './repository';
+} from '../../src';
 
 /** A record as it appears in a dataset file: its stableId and its own fields, without versioning. */
 export type DatasetRecord<T extends VersionedRecord> = RecordBody<T> & { stableId: string };
@@ -29,23 +29,23 @@ export interface Dataset {
  * Loads a dataset and saves it. Loading the same dataset again writes nothing;
  * loading a changed one writes new versions of the records that changed.
  */
-export async function loadDataset(repository: Repository, context: DataContext, dataset: Dataset): Promise<void> {
+export async function loadDataset(unitOfWork: UnitOfWork, dataset: Dataset): Promise<void> {
   for (const record of dataset.authorities ?? []) {
-    repository.put(context.authorities, record.stableId, withoutStableId(record));
+    unitOfWork.authorities.put(record.stableId, withoutStableId(record));
   }
   for (const record of dataset.orgs ?? []) {
-    repository.put(context.orgs, record.stableId, withoutStableId(record));
+    unitOfWork.orgs.put(record.stableId, withoutStableId(record));
   }
   for (const record of dataset.orgDelegations ?? []) {
-    repository.put(context.orgDelegations, record.stableId, withoutStableId(record));
+    unitOfWork.orgDelegations.put(record.stableId, withoutStableId(record));
   }
   for (const record of dataset.evidences ?? []) {
-    repository.put(context.evidences, record.stableId, withoutStableId(record));
+    unitOfWork.evidences.put(record.stableId, withoutStableId(record));
   }
   for (const record of dataset.evidenceDelegations ?? []) {
     // Keep the fragment the row already has: it stays until the next publish replaces it.
-    const existing = await repository.getEvidenceDelegation(record.orgDelegationId, record.evidenceId);
-    repository.put(context.evidenceDelegations, record.stableId, {
+    const existing = await unitOfWork.evidenceDelegations.getForRow(record.orgDelegationId, record.evidenceId);
+    unitOfWork.evidenceDelegations.put(record.stableId, {
       orgDelegationId: record.orgDelegationId,
       evidenceId: record.evidenceId,
       observedPolicy: record.observedPolicy,
@@ -53,9 +53,9 @@ export async function loadDataset(repository: Repository, context: DataContext, 
     });
   }
   for (const record of dataset.policyTemplates ?? []) {
-    repository.put(context.policyTemplates, record.stableId, withoutStableId(record));
+    unitOfWork.policyTemplates.put(record.stableId, withoutStableId(record));
   }
-  await repository.saveChanges();
+  await unitOfWork.saveChanges();
 }
 
 function withoutStableId<T extends VersionedRecord>(record: DatasetRecord<T>): RecordBody<T> {
