@@ -18,6 +18,24 @@ ADEO stands for **Authority, Delegation, Evidence, Org**. The idea in one line: 
 
 Authorities and orgs are kept apart on purpose. One mandate is often carried out by many orgs, one org often carries several mandates, and the body that sets the rules is frequently not the one the applicant deals with. Modelling the mandate separately lets the same structure describe a single national office, a regulator with hundreds of approved providers, and everything between.
 
+### Types
+
+Two of the concepts above have a type, which is the same in every jurisdiction.
+
+| Type | What it is | Linked to |
+|---|---|---|
+| **AuthorityType** | A kind of mandate: a civil registry, a professional regulator, a utility provider. It lists the evidence types such a mandate can cover. | An `Authority` is one authority type in one jurisdiction (`Authority.authorityType`). |
+| **EvidenceType** | A kind of document: a passport, a licence to practise, a payment receipt. | An `Evidence` is a concrete document of one or more evidence types (`Evidence.evidenceTypes`). An `OrgDelegation` names the evidence types its org issues (`OrgDelegation.evidenceTypes`). |
+
+An evidence type also says a few things about every document of its kind:
+
+- **Terminal or not.** A terminal document is one people set out to obtain and go on to use elsewhere. A non-terminal one only exists along the way: a receipt, a booking confirmation.
+- **Instance scope.** Whether there is one evidence per delegation row that issues it, one per org, or one for the type as a whole.
+- **Holder-authored.** The holder writes it, as with a completed form, and no org issues it.
+- **Annex.** It only exists attached to another document, as with a certified copy or a translation.
+
+Evidence types are listed on the authority type and on the delegation, never on the authority itself: what a mandate *can* cover is a property of its type, and what an org *does* issue is a property of its delegation.
+
 ### Delegation stacks
 
 A mandate reaches the applicant through a *delegation stack*: an ordered list of delegation rows, from the body that sets the rules (index 1) up to the org the applicant actually deals with (the highest index).
@@ -30,6 +48,14 @@ Guild licence, Republic of Zedland
 ```
 
 A stack can be a single row (one office does everything) or several. Each row describes only its own part of the process, and where two rows disagree the higher index wins: the org the applicant deals with describes what happens in practice.
+
+## What a person holds
+
+Everything above describes what can be issued. **UserEvidence** is the other side: one person's own instance of an `Evidence` (`UserEvidence.evidenceId`), which is where its issuer and jurisdiction come from.
+
+- **Ownership declaration.** A person may hold a document with a copy on file, say they hold it without one, intend to obtain it, be told by a plan that they need it, or have handed it over to an org.
+- **Sequence.** Whether it was, or is to be, obtained as a first issue or a re-issue. This is the same value a policy carries (`Policy.sequence`), so a user evidence can be matched to the policy that describes how to get it.
+- **Annex chains.** Documents are often not used bare: a certificate is copied, the copy is certified, the certification is legalised, the result is translated. Each of those is a user evidence annexed to the one before. The standalone document is the root of the chain, and every annexed evidence points at the root and at its direct parent.
 
 ## Policies
 
@@ -59,7 +85,7 @@ Every record has a `stableId` that identifies it across time and a `temporalId` 
 ## Layout
 
 ```
-src/entities      one file per entity, in two folders: ADEO (the records) and EvidencePolicy (the parts of a policy)
+src/entities      one file per entity: ADEO (the records and their types), EvidencePolicy (the parts of a policy), and UserEvidence
 src/repository    one repository per entity over a data context, a unit of work, an in-memory context
 src/services      services over the repositories
 fixtures/stacks   example delegation stacks

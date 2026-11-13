@@ -9,7 +9,10 @@ import type { VersionedRecord } from '../versionedRecord';
 export interface OrgDelegation extends VersionedRecord {
   delegationStackId: string;
   delegationStackIndex: number;
+  /** The stableId of an Authority. */
   authorityId: string;
+  /** The stableId of an Org. */
   orgId: string;
+  /** The kinds of evidence this org issues under the mandate. Each is the stableId of an EvidenceType, and one the authority's type covers. */
   evidenceTypes: string[];
 }
