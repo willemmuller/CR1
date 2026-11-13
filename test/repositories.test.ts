@@ -218,9 +218,18 @@ describe('PublishLogRepository', () => {
     const body = {
       delegationStackId: STACK_ID,
       evidenceId: EVIDENCE_ID,
+      compiledEvidencePolicyId: null,
       startedAt: T1,
-      outcome: 'REJECTED' as const,
-      entries: [{ sequence: 1, level: 'error' as const, code: 'ROW_NOT_OBSERVED', message: 'Row has no observed policy.' }],
+      status: 'FAIL' as const,
+      entries: [
+        {
+          sequence: 1,
+          createdAt: T1,
+          level: 'error' as const,
+          code: 'ROW_NOT_OBSERVED',
+          message: 'Row has no observed policy.',
+        },
+      ],
     };
 
     await unitOfWork.publishLogs.record(body);
