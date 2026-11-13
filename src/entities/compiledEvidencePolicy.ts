@@ -8,6 +8,6 @@ export interface CompiledEvidencePolicy extends VersionedRecord {
   evidenceId: string;
   policy: Policy;
   schema: JsonObject;
-  /** temporalIds of the delegation rows and templates this was built from. */
+  /** temporalIds of the delegation rows this was built from. */
   builtFrom: string[];
 }

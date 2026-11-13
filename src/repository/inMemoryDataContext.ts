@@ -5,7 +5,6 @@ import type {
   EvidenceDelegation,
   Org,
   OrgDelegation,
-  PolicyTemplate,
   PublishLog,
   VersionedRecord,
 } from '../entities';
@@ -18,7 +17,6 @@ export class InMemoryDataContext implements DataContext {
   readonly orgDelegations = new InMemoryTable<OrgDelegation>();
   readonly evidences = new InMemoryTable<Evidence>();
   readonly evidenceDelegations = new InMemoryTable<EvidenceDelegation>();
-  readonly policyTemplates = new InMemoryTable<PolicyTemplate>();
   readonly compiledEvidencePolicies = new InMemoryTable<CompiledEvidencePolicy>();
   readonly publishLogs = new InMemoryTable<PublishLog>();
 
@@ -45,7 +43,6 @@ export class InMemoryDataContext implements DataContext {
       this.orgDelegations,
       this.evidences,
       this.evidenceDelegations,
-      this.policyTemplates,
       this.compiledEvidencePolicies,
       this.publishLogs,
     ] as unknown as InMemoryTable<VersionedRecord>[];

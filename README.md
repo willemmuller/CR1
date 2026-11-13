@@ -50,7 +50,7 @@ The same policy structure is used in three forms:
 
 - **Observed**: the process as one org's own pages present it. Partial by nature, since nobody publishes the whole process.
 - **Fragment**: the part of a row's observed policy that the rows below it do not already state. Fragments are what is stored and reused.
-- **Compiled**: the fragments of a stack merged in index order and filled in with templates for the standard parts of any process. One compiled policy per stack and evidence.
+- **Compiled**: the fragments of a stack merged in index order. One compiled policy per stack and evidence.
 
 ## Versioning
 

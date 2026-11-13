@@ -11,7 +11,6 @@ export * from './org';
 export * from './orgDelegation';
 export * from './outcome';
 export * from './policy';
-export * from './policyTemplate';
 export * from './publishLog';
 export * from './resolvedEvidence';
 export * from './rule';

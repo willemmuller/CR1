@@ -7,7 +7,6 @@ export * from './inMemoryDataContext';
 export * from './inMemoryTable';
 export * from './orgDelegationRepository';
 export * from './orgRepository';
-export * from './policyTemplateRepository';
 export * from './publishLogRepository';
 export * from './table';
 export * from './unitOfWork';

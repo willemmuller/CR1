@@ -188,18 +188,6 @@ describe('EvidenceDelegationRepository.savePolicyFragment', () => {
   });
 });
 
-describe('PolicyTemplateRepository.getAll', () => {
-  it('returns current templates ordered by name', async () => {
-    const { unitOfWork } = await createGuildLicenceHarness();
-    unitOfWork.policyTemplates.put('TEMPLATE__SUBMIT_REQUEST', { name: 'submitRequest', content: {} });
-    unitOfWork.policyTemplates.put('TEMPLATE__ATTEND_COLLECTION', { name: 'attendCollection', content: {} });
-
-    const templates = await unitOfWork.policyTemplates.getAll();
-
-    expect(templates.map((template) => template.name)).toEqual(['attendAppointment', 'attendCollection', 'submitRequest']);
-  });
-});
-
 describe('CompiledEvidencePolicyRepository', () => {
   it('keeps one compiled policy per stack and evidence, re-versioned only when it changes', async () => {
     const { unitOfWork, clock } = await createGuildLicenceHarness();
@@ -250,12 +238,12 @@ describe('PublishLogRepository', () => {
 describe('loadDataset', () => {
   it('writes nothing when the same dataset is loaded again', async () => {
     const { context, unitOfWork, clock } = await createGuildLicenceHarness();
-    const before = [context.orgDelegations.all(), context.evidenceDelegations.all(), context.policyTemplates.all()];
+    const before = [context.orgDelegations.all(), context.evidenceDelegations.all(), context.evidences.all()];
     clock.set(T2);
 
     await loadDataset(unitOfWork, readDataset('guild-licence'));
 
-    const after = [context.orgDelegations.all(), context.evidenceDelegations.all(), context.policyTemplates.all()];
+    const after = [context.orgDelegations.all(), context.evidenceDelegations.all(), context.evidences.all()];
     expect(after).toEqual(before);
   });
 
