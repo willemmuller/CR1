@@ -163,26 +163,5 @@
         ]
       }
     }
-  ],
-  "policyTemplates": [
-    {
-      "stableId": "TEMPLATE__ATTEND_APPOINTMENT",
-      "name": "attendAppointment",
-      "content": {
-        "steps": [
-          {
-            "stepId": "attendAppointment",
-            "outcomes": [
-              {
-                "outcomeId": "missed",
-                "stepState": "IN_PROGRESS",
-                "taskState": "IN_PROGRESS",
-                "title": "I missed it"
-              }
-            ]
-          }
-        ]
-      }
-    }
   ]
 }

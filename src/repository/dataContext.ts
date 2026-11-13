@@ -5,7 +5,6 @@ import type {
   EvidenceDelegation,
   Org,
   OrgDelegation,
-  PolicyTemplate,
   PublishLog,
 } from '../entities';
 import type { Table } from './table';
@@ -20,7 +19,6 @@ export interface DataContext {
   readonly orgDelegations: Table<OrgDelegation>;
   readonly evidences: Table<Evidence>;
   readonly evidenceDelegations: Table<EvidenceDelegation>;
-  readonly policyTemplates: Table<PolicyTemplate>;
   readonly compiledEvidencePolicies: Table<CompiledEvidencePolicy>;
   readonly publishLogs: Table<PublishLog>;
 

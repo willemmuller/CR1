@@ -6,7 +6,6 @@ import { EvidenceDelegationRepository } from './evidenceDelegationRepository';
 import { EvidenceRepository } from './evidenceRepository';
 import { OrgDelegationRepository } from './orgDelegationRepository';
 import { OrgRepository } from './orgRepository';
-import { PolicyTemplateRepository } from './policyTemplateRepository';
 import { PublishLogRepository } from './publishLogRepository';
 
 /**
@@ -19,7 +18,6 @@ export class UnitOfWork {
   readonly orgDelegations: OrgDelegationRepository;
   readonly evidences: EvidenceRepository;
   readonly evidenceDelegations: EvidenceDelegationRepository;
-  readonly policyTemplates: PolicyTemplateRepository;
   readonly compiledEvidencePolicies: CompiledEvidencePolicyRepository;
   readonly publishLogs: PublishLogRepository;
 
@@ -32,7 +30,6 @@ export class UnitOfWork {
     this.orgDelegations = new OrgDelegationRepository(context, clock);
     this.evidences = new EvidenceRepository(context, clock);
     this.evidenceDelegations = new EvidenceDelegationRepository(context, clock);
-    this.policyTemplates = new PolicyTemplateRepository(context, clock);
     this.compiledEvidencePolicies = new CompiledEvidencePolicyRepository(context, clock);
     this.publishLogs = new PublishLogRepository(context, clock);
   }

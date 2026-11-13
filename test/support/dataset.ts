@@ -4,7 +4,6 @@ import type {
   EvidenceDelegation,
   Org,
   OrgDelegation,
-  PolicyTemplate,
   RecordBody,
   UnitOfWork,
   VersionedRecord,
@@ -22,7 +21,6 @@ export interface Dataset {
   evidences?: DatasetRecord<Evidence>[];
   /** Fragments are derived on publish, so a dataset carries only what was observed. */
   evidenceDelegations?: Omit<DatasetRecord<EvidenceDelegation>, 'policyFragment'>[];
-  policyTemplates?: DatasetRecord<PolicyTemplate>[];
 }
 
 /**
@@ -51,9 +49,6 @@ export async function loadDataset(unitOfWork: UnitOfWork, dataset: Dataset): Pro
       observedPolicy: record.observedPolicy,
       policyFragment: existing?.policyFragment ?? null,
     });
-  }
-  for (const record of dataset.policyTemplates ?? []) {
-    unitOfWork.policyTemplates.put(record.stableId, withoutStableId(record));
   }
   await unitOfWork.saveChanges();
 }
