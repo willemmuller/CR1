@@ -59,7 +59,7 @@ Every record has a `stableId` that identifies it across time and a `temporalId` 
 ## Layout
 
 ```
-src/entities      one file per entity: the ADEO records and the parts of a policy
+src/entities      one file per entity, in two folders: ADEO (the records) and EvidencePolicy (the parts of a policy)
 src/repository    one repository per entity over a data context, a unit of work, an in-memory context
 src/services      services over the repositories
 fixtures/stacks   example delegation stacks

@@ -1,5 +1,5 @@
-import type { JsonObject } from '../util/json';
-import type { VersionedRecord } from './versionedRecord';
+import type { JsonObject } from '../../util/json';
+import type { VersionedRecord } from '../versionedRecord';
 
 /** A document that can be issued. */
 export interface Evidence extends VersionedRecord {

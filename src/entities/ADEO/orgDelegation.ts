@@ -1,4 +1,4 @@
-import type { VersionedRecord } from './versionedRecord';
+import type { VersionedRecord } from '../versionedRecord';
 
 /**
  * One row of a delegation stack: an authority's mandate reaching an org.

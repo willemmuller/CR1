@@ -1,6 +1,6 @@
-import type { JsonObject } from '../util/json';
-import type { Policy } from './policy';
-import type { VersionedRecord } from './versionedRecord';
+import type { JsonObject } from '../../util/json';
+import type { Policy } from '../EvidencePolicy/policy';
+import type { VersionedRecord } from '../versionedRecord';
 
 /** The only compiled artifact: one per delegation stack and evidence. */
 export interface CompiledEvidencePolicy extends VersionedRecord {

@@ -1,5 +1,5 @@
-import type { Policy } from './policy';
-import type { VersionedRecord } from './versionedRecord';
+import type { Policy } from '../EvidencePolicy/policy';
+import type { VersionedRecord } from '../versionedRecord';
 
 /**
  * What one stack row says about issuing one evidence.
