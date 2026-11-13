@@ -1,8 +1,10 @@
 export * from './authorityRepository';
+export * from './authorityTypeRepository';
 export * from './compiledEvidencePolicyRepository';
 export * from './dataContext';
 export * from './evidenceDelegationRepository';
 export * from './evidenceRepository';
+export * from './evidenceTypeRepository';
 export * from './inMemoryDataContext';
 export * from './inMemoryTable';
 export * from './orgDelegationRepository';
@@ -10,4 +12,5 @@ export * from './orgRepository';
 export * from './publishLogRepository';
 export * from './table';
 export * from './unitOfWork';
+export * from './userEvidenceRepository';
 export * from './versionedRepository';
