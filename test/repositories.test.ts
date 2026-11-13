@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { compiledPolicyId, publishLogId } from '../src';
 import type { Org, RecordBody } from '../src';
 import { loadDataset } from './support/dataset';
 import {
@@ -160,6 +161,89 @@ describe('Repository reads', () => {
     expect(evidence?.temporalId).toBe(`${EVIDENCE_ID}_v2`);
     expect(evidence?.name).toBe('Zedland Guild Licence (2026 design)');
     expect(unitOfWork.evidences.history(EVIDENCE_ID)).toHaveLength(2);
+  });
+});
+
+describe('EvidenceDelegationRepository.savePolicyFragment', () => {
+  it('stores the fragment as a new version and leaves the observed policy alone', async () => {
+    const { unitOfWork } = await createGuildLicenceHarness();
+    const row = (await unitOfWork.evidenceDelegations.getForRow(ROW_2_ID, EVIDENCE_ID))!;
+
+    const saved = await unitOfWork.evidenceDelegations.savePolicyFragment(row, { steps: [{ stepId: 'attendAssessment' }] });
+
+    expect(saved).toMatchObject({ temporalId: `${row.stableId}_v2`, from: T1, to: null });
+    expect(saved.policyFragment).toEqual({ steps: [{ stepId: 'attendAssessment' }] });
+    expect(saved.observedPolicy).toEqual(row.observedPolicy);
+  });
+
+  it('writes nothing when the row already has that fragment', async () => {
+    const { unitOfWork } = await createGuildLicenceHarness();
+    const row = (await unitOfWork.evidenceDelegations.getForRow(ROW_2_ID, EVIDENCE_ID))!;
+    const first = await unitOfWork.evidenceDelegations.savePolicyFragment(row, { steps: [] });
+
+    const second = await unitOfWork.evidenceDelegations.savePolicyFragment(first, { steps: [] });
+
+    expect(second).toEqual(first);
+    expect(unitOfWork.evidenceDelegations.history(row.stableId)).toHaveLength(2);
+  });
+});
+
+describe('PolicyTemplateRepository.getAll', () => {
+  it('returns current templates ordered by name', async () => {
+    const { unitOfWork } = await createGuildLicenceHarness();
+    unitOfWork.policyTemplates.put('TEMPLATE__SUBMIT_REQUEST', { name: 'submitRequest', content: {} });
+    unitOfWork.policyTemplates.put('TEMPLATE__ATTEND_COLLECTION', { name: 'attendCollection', content: {} });
+
+    const templates = await unitOfWork.policyTemplates.getAll();
+
+    expect(templates.map((template) => template.name)).toEqual(['attendAppointment', 'attendCollection', 'submitRequest']);
+  });
+});
+
+describe('CompiledEvidencePolicyRepository', () => {
+  it('keeps one compiled policy per stack and evidence, re-versioned only when it changes', async () => {
+    const { unitOfWork, clock } = await createGuildLicenceHarness();
+    const body = {
+      delegationStackId: STACK_ID,
+      evidenceId: EVIDENCE_ID,
+      policy: { steps: [{ stepId: 'attendAssessment' }] },
+      schema: { type: 'object' },
+      builtFrom: [`${ROW_1_ID}__${EVIDENCE_ID}_v2`],
+    };
+    expect(await unitOfWork.compiledEvidencePolicies.getForStack(STACK_ID, EVIDENCE_ID)).toBeNull();
+
+    const first = await unitOfWork.compiledEvidencePolicies.save(body);
+    clock.set(T2);
+    const same = await unitOfWork.compiledEvidencePolicies.save(body);
+    const changed = await unitOfWork.compiledEvidencePolicies.save({ ...body, policy: { steps: [] } });
+
+    expect(first.temporalId).toBe(`${compiledPolicyId(STACK_ID, EVIDENCE_ID)}_v1`);
+    expect(same).toEqual(first);
+    expect(changed.temporalId).toBe(`${compiledPolicyId(STACK_ID, EVIDENCE_ID)}_v2`);
+    expect(await unitOfWork.compiledEvidencePolicies.getForStack(STACK_ID, EVIDENCE_ID)).toEqual(changed);
+  });
+});
+
+describe('PublishLogRepository', () => {
+  it('keeps every run, oldest first, even when two runs log the same thing', async () => {
+    const { unitOfWork } = await createGuildLicenceHarness();
+    const body = {
+      delegationStackId: STACK_ID,
+      evidenceId: EVIDENCE_ID,
+      startedAt: T1,
+      outcome: 'REJECTED' as const,
+      entries: [{ sequence: 1, level: 'error' as const, code: 'ROW_NOT_OBSERVED', message: 'Row has no observed policy.' }],
+    };
+
+    await unitOfWork.publishLogs.record(body);
+    await unitOfWork.publishLogs.record(body);
+
+    const runs = await unitOfWork.publishLogs.getRuns(STACK_ID, EVIDENCE_ID);
+    expect(runs.map((run) => run.temporalId)).toEqual([
+      `${publishLogId(STACK_ID, EVIDENCE_ID)}_v1`,
+      `${publishLogId(STACK_ID, EVIDENCE_ID)}_v2`,
+    ]);
+    expect(await unitOfWork.publishLogs.getRuns('NO_SUCH_STACK', EVIDENCE_ID)).toEqual([]);
   });
 });
 
