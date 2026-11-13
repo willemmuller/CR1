@@ -1,7 +1,7 @@
 {
-  "name": "policy-publish",
+  "name": "adeo-model",
   "version": "0.1.0",
-  "description": "Publishes compiled evidence policies from the policies observed along a delegation stack.",
+  "description": "The ADEO model: authorities, delegations, evidence and orgs, and the policies that describe how evidence is issued.",
   "license": "MIT",
   "private": true,
   "type": "module",
